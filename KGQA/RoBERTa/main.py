@@ -44,7 +44,7 @@ parser.add_argument('--scoredrop', type=float, default=0.0)
 parser.add_argument('--l3_reg', type=float, default=0.0)
 parser.add_argument('--decay', type=float, default=1.0)
 parser.add_argument('--shuffle_data', type=bool, default=True)
-parser.add_argument('--num_workers', type=int, default=15)
+parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--nb_epochs', type=int, default=90)
 parser.add_argument('--gpu', type=int, default=0)
@@ -253,7 +253,7 @@ def validate_v2(data_path, device, model, train_dataloader, entity2idx, model_na
         
     if writeCandidatesToFile:
         # pickle.dump(candidates_with_scores, open('candidates_with_score_and_qe_half.pkl', 'wb'))
-        pickle.dump(candidates_with_scores, open('webqsp_scores_full_kg.pkl', 'wb'))
+        pickle.dump(candidates_with_scores, open('HetioNet_scores_full_kg.pkl', 'wb'))
         print('wrote candidate file (for future answer processing)')
     # np.save("scores_webqsp_complex.npy", scores_list)
     # exit(0)
@@ -278,9 +278,9 @@ def set_bn_eval(m):
 
 def getEntityEmbeddings(kge_model, hops):
     e = {}
-    entity_dict = '../../pretrained_models/embeddings/ComplEx_fbwq_full/entity_ids.del'
+    entity_dict = '../../pretrained_models/embeddings/HetioNet/entity_ids.del'
     if 'half' in hops:
-        entity_dict = '../../pretrained_models/embeddings/ComplEx_fbwq_half/entity_ids.del'
+        entity_dict = '../../pretrained_models/embeddings/HetioNet/entity_ids.del'
         print('Loading half entity_ids.del')
     embedder = kge_model._entity_embedder
     f = open(entity_dict, 'r')
@@ -297,7 +297,7 @@ def train(data_path, neg_batch_size, batch_size, shuffle, num_workers, nb_epochs
     kg_type = 'full'
     if 'half' in hops:
         kg_type = 'half'
-    checkpoint_file = '../../pretrained_models/embeddings/ComplEx_fbwq_' + kg_type + '/checkpoint_best.pt'
+    checkpoint_file = '../../pretrained_models/embeddings/HetioNet/checkpoint_best.pt'
     print('Loading kg embeddings from', checkpoint_file)
     kge_checkpoint = load_checkpoint(checkpoint_file)
     kge_model = KgeModel.create_from(kge_checkpoint)
@@ -441,52 +441,52 @@ hops = args.hops
 
 model_name = args.model
 
-if 'webqsp' in hops:
-    data_path = '../../data/QA_data/WebQuestionsSP/qa_train_webqsp.txt'
-    valid_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
-    test_data_path = '../../data/QA_data/WebQuestionsSP/qa_test_webqsp.txt'
+
+data_path = '../../data/QA_data/HetioNet/qa_train.txt'
+valid_data_path = '../../data/QA_data/HetioNet/qa_val.txt'
+test_data_path = '../../data/QA_data/HetioNet/qa_test.txt'
+
+if __name__ == '__main__':
+    if args.mode == 'train':
+        train(data_path=data_path, 
+        neg_batch_size=args.neg_batch_size, 
+        batch_size=args.batch_size,
+        shuffle=args.shuffle_data, 
+        num_workers=args.num_workers,
+        nb_epochs=args.nb_epochs, 
+        embedding_dim=args.embedding_dim, 
+        hidden_dim=args.hidden_dim, 
+        relation_dim=args.relation_dim, 
+        gpu=args.gpu, 
+        use_cuda=args.use_cuda, 
+        valid_data_path=valid_data_path,
+        patience=args.patience,
+        validate_every=args.validate_every,
+        freeze=args.freeze,
+        hops=args.hops,
+        lr=args.lr,
+        entdrop=args.entdrop,
+        reldrop=args.reldrop,
+        scoredrop = args.scoredrop,
+        l3_reg = args.l3_reg,
+        model_name=args.model,
+        decay=args.decay,
+        ls=args.ls,
+        load_from=args.load_from,
+        outfile=args.outfile,
+        do_batch_norm=args.do_batch_norm)
 
 
-if args.mode == 'train':
-    train(data_path=data_path, 
-    neg_batch_size=args.neg_batch_size, 
-    batch_size=args.batch_size,
-    shuffle=args.shuffle_data, 
-    num_workers=args.num_workers,
-    nb_epochs=args.nb_epochs, 
-    embedding_dim=args.embedding_dim, 
-    hidden_dim=args.hidden_dim, 
-    relation_dim=args.relation_dim, 
-    gpu=args.gpu, 
-    use_cuda=args.use_cuda, 
-    valid_data_path=valid_data_path,
-    patience=args.patience,
-    validate_every=args.validate_every,
-    freeze=args.freeze,
-    hops=args.hops,
-    lr=args.lr,
-    entdrop=args.entdrop,
-    reldrop=args.reldrop,
-    scoredrop = args.scoredrop,
-    l3_reg = args.l3_reg,
-    model_name=args.model,
-    decay=args.decay,
-    ls=args.ls,
-    load_from=args.load_from,
-    outfile=args.outfile,
-    do_batch_norm=args.do_batch_norm)
 
-
-
-elif args.mode == 'eval':
-    eval(data_path = test_data_path,
-    entity_path=entity_embedding_path, 
-    relation_path=relation_embedding_path, 
-    entity_dict=entity_dict, 
-    relation_dict=relation_dict,
-    model_path='checkpoints/head_as_neg_model/best_score_model.pt',
-    train_data=data_path,
-    gpu=args.gpu,
-    hidden_dim=args.hidden_dim,
-    relation_dim=args.relation_dim,
-    embedding_dim=args.embedding_dim)
+    elif args.mode == 'eval':
+        eval(data_path = test_data_path,
+        entity_path=entity_embedding_path, 
+        relation_path=relation_embedding_path, 
+        entity_dict=entity_dict, 
+        relation_dict=relation_dict,
+        model_path='checkpoints/head_as_neg_model/best_score_model.pt',
+        train_data=data_path,
+        gpu=args.gpu,
+        hidden_dim=args.hidden_dim,
+        relation_dim=args.relation_dim,
+        embedding_dim=args.embedding_dim)

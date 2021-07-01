@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 from torch.nn.init import xavier_normal_
-from transformers import *
+from transformers import AutoTokenizer, AutoModel
 import random
 
 class RelationExtractor(nn.Module):
@@ -22,7 +22,7 @@ class RelationExtractor(nn.Module):
         if not self.do_batch_norm:
             print('Not doing batch norm')
         self.roberta_pretrained_weights = 'roberta-base'
-        self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
+        self.roberta_model = AutoModel.from_pretrained("dmis-lab/biobert-v1.1")
         for param in self.roberta_model.parameters():
             param.requires_grad = True
         if self.model == 'DistMult':

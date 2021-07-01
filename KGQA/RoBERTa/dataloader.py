@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 from tqdm import tqdm
 import numpy as np
-from transformers import *
+from transformers import AutoTokenizer
 
 
 class DatasetMetaQA(Dataset):
@@ -20,9 +20,9 @@ class DatasetMetaQA(Dataset):
         self.pos_dict = defaultdict(list)
         self.neg_dict = defaultdict(list)
         self.index_array = list(self.entities.keys())
-        self.tokenizer_class = RobertaTokenizer
+        self.tokenizer_class = AutoTokenizer
         self.pretrained_weights = 'roberta-base'
-        self.tokenizer = self.tokenizer_class.from_pretrained(self.pretrained_weights, cache_dir='.')
+        self.tokenizer = self.tokenizer_class.from_pretrained("dmis-lab/biobert-v1.1")
 
     def __len__(self):
         return len(self.data)
@@ -59,6 +59,7 @@ class DatasetMetaQA(Dataset):
 
     def tokenize_question(self, question):
         question = "<s> " + question + " </s>"
+        print(question)
         question_tokenized = self.tokenizer.tokenize(question)
         question_tokenized = self.pad_sequence(question_tokenized, 64)
         question_tokenized = torch.tensor(self.tokenizer.encode(question_tokenized, add_special_tokens=False))
