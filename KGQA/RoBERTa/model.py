@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 from torch.nn.init import xavier_normal_
-from transformers import AutoTokenizer, AutoModel
+from transformers import *
 import random
 
 class RelationExtractor(nn.Module):
@@ -22,7 +22,7 @@ class RelationExtractor(nn.Module):
         if not self.do_batch_norm:
             print('Not doing batch norm')
         self.roberta_pretrained_weights = 'roberta-base'
-        self.roberta_model = AutoModel.from_pretrained("dmis-lab/biobert-v1.1")
+        self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
         for param in self.roberta_model.parameters():
             param.requires_grad = True
         if self.model == 'DistMult':
@@ -197,6 +197,12 @@ class RelationExtractor(nn.Module):
 
         re_relation, im_relation = torch.chunk(relation, 2, dim=1)
         re_tail, im_tail = torch.chunk(self.embedding.weight, 2, dim =1)
+        # print(re_head.size())
+        # print(im_head.size())
+        # print(re_tail.size())
+        # print(im_tail.size())
+        # print(re_relation.size())
+        # print(im_relation.size())
 
         re_score = re_head * re_relation - im_head * im_relation
         im_score = re_head * im_relation + im_head * re_relation
