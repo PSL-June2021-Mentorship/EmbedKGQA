@@ -21,8 +21,8 @@ class RelationExtractor(nn.Module):
         self.do_batch_norm = do_batch_norm
         if not self.do_batch_norm:
             print('Not doing batch norm')
-        self.roberta_pretrained_weights = 'roberta-base'
-        self.roberta_model = RobertaModel.from_pretrained(self.roberta_pretrained_weights)
+        self.roberta_pretrained_weights = 'dmis-lab/biobert-v1.1'
+        self.roberta_model = AutoModel.from_pretrained(self.roberta_pretrained_weights)
         for param in self.roberta_model.parameters():
             param.requires_grad = True
         if self.model == 'DistMult':
@@ -256,3 +256,5 @@ class RelationExtractor(nn.Module):
         # return top2
         return scores
         
+
+
