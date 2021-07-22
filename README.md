@@ -1,4 +1,6 @@
 # Question Answering on HetioNet
+
+This is a fork of [EmbedKGQA](https://github.com/malllabiisc/EmbedKGQA)
 In order to replicate, please download [LibKGE](https://github.com/uma-pi1/kge) and train KG Embeddings on the [HetioNet KG](https://github.com/hetio/hetionet) in tsv format.
 
 Make a pretrained_models folder. Add an embeddings folder. In that, copy the hetionet dataset folder (named as HetioNet) that must have been made to run LibKGE on HetioNet in this folder. Also add the checkpoint_best.pt file inside the HetioNet folder from the LibKGE training folder.
