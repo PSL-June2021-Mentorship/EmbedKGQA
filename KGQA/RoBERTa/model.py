@@ -256,3 +256,5 @@ class RelationExtractor(nn.Module):
         # return top2
         return scores
         
+
+

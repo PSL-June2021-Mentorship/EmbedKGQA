@@ -87,4 +87,3 @@ class DataLoaderMetaQA(DataLoader):
     def __init__(self, *args, **kwargs):
         super(DataLoaderMetaQA, self).__init__(*args, **kwargs)
         self.collate_fn = _collate_fn
-

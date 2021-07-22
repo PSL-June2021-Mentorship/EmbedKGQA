@@ -9,7 +9,9 @@ import argparse
 import operator
 from torch.nn import functional as F
 from dataloader import DatasetMetaQA, DataLoaderMetaQA
+from dataloadermeta import DatasetMetaQAMeta, DataLoaderMetaQAMeta
 from model import RelationExtractor
+from modelmeta import RelationExtractorMeta
 from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau
 import networkx as nx
 import time
@@ -18,11 +20,16 @@ sys.path.append("../..") # Adds higher directory to python modules path.
 from kge.model import KgeModel
 from kge.util.io import load_checkpoint
 from copy import deepcopy
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List
 from enum import Enum
-
+import pandas as pd
+import spacy
+#import en_core_sci_sm
 def str2bool(v):
     if isinstance(v, bool):
        return v
@@ -171,10 +178,10 @@ def validate_v2(data, device, model, train_dataloader, entity2idx, model_name):
         mask[head] = 1
         #reduce scores of all non-candidates
         new_scores = scores - (mask*99999)
-        pred_ans = torch.argmax(new_scores).item()
+        _, pred_ans = torch.sort(new_scores, descending=True)
         # new_scores = new_scores.cpu().detach().numpy()
         # scores_list.append(new_scores)
-        if pred_ans == head.item():
+        if pred_ans[0].item() == head.item():
             print('Head and answer same')
             print(torch.max(new_scores))
             print(torch.min(new_scores))
@@ -210,13 +217,13 @@ def validate_v2(data, device, model, train_dataloader, entity2idx, model_name):
         if type(ans) is int:
             ans = [ans]
         is_correct = 0
-        if pred_ans in ans:
+        if pred_ans[0].item() in ans:
             total_correct += 1
             is_correct = 1
         else:
             num_incorrect += 1
         q_text = d[-1]
-        answers.append(pred_ans)
+        answers.append(pred_ans[:5])
         # except:
         #     error_count += 1
         
@@ -402,8 +409,14 @@ def data_generator(data, dataloader, entity2idx):
 
         yield torch.tensor(head, dtype=torch.long), question_tokenized, attention_mask, ans, data_sample[1]
 
-
-
+def entity_name():
+    df = pd.read_csv('https://raw.githubusercontent.com/hetio/hetionet/master/hetnet/tsv/hetionet-v1.0-nodes.tsv', sep='\t')
+    entity2name = {}
+    name2entity = {}
+    for index, row in df.iterrows():
+        entity2name[row['id']]=row['name']
+        name2entity[row['name']]=row['id']
+    return entity2name, name2entity
 
 hops = ''
 
@@ -421,16 +434,29 @@ kge_model = KgeModel.create_from(kge_checkpoint)
 kge_model.eval()
 e = getEntityEmbeddings(kge_model, hops)
 entity2idx, idx2entity, embedding_matrix = prepare_embeddings(e)
+entity2name, name2entity = entity_name()
 data = process_text_file(data_path, split=False)
 device = torch.device("cpu")
-dataset = DatasetMetaQA(data, e, entity2idx)
-data_loader = DataLoader(dataset, batch_size=32, shuffle=True)
-model = RelationExtractor(embedding_dim=256, num_entities = len(idx2entity), relation_dim=50, pretrained_embeddings=embedding_matrix, freeze=1, device=device, entdrop = 0.0, reldrop = 0.0, scoredrop = 0.0, l3_reg = 0.001, model = model_name, ls = 0.05, do_batch_norm=1)
-model.to(device)
-model.load_state_dict(torch.load('ml/best_score_model.pt', map_location=lambda storage, loc: storage))
-model.eval()
+datasetbio = DatasetMetaQA(data, e, entity2idx)
+data_loaderbio = DataLoader(datasetbio, batch_size=32, shuffle=True)
+datasetrob = DatasetMetaQAMeta(data, e, entity2idx)
+data_loaderrob = DataLoader(datasetrob, batch_size=32, shuffle=True)
+modelbio = RelationExtractor(embedding_dim=256, num_entities = len(idx2entity), relation_dim=50, pretrained_embeddings=embedding_matrix, freeze=1, device=device, entdrop = 0.0, reldrop = 0.0, scoredrop = 0.0, l3_reg = 0.001, model = model_name, ls = 0.05, do_batch_norm=1)
+modelbio.to(device)
+modelbio.load_state_dict(torch.load('ml/biobert_model.pt', map_location=lambda storage, loc: storage))
+modelbio.eval()
+modelrob = RelationExtractorMeta(embedding_dim=256, num_entities = len(idx2entity), relation_dim=50, pretrained_embeddings=embedding_matrix, freeze=1, device=device, entdrop = 0.0, reldrop = 0.0, scoredrop = 0.0, l3_reg = 0.001, model = model_name, ls = 0.05, do_batch_norm=1)
+modelrob.to(device)
+modelrob.load_state_dict(torch.load('ml/roberta_model.pt', map_location=lambda storage, loc: storage))
+modelrob.eval()
 print("models loaded from disk")
 
+nlp=spacy.load("en_core_web_sm")
+ruler = nlp.add_pipe("entity_ruler")
+patterns = [{"label": "BIOMED", "pattern": entity2name[x]} for x in entity2name]
+with nlp.select_pipes(enable="tagger"):
+    ruler.add_patterns(patterns)
+    
 class UserRequestIn(BaseModel):
     text: str
     head: str
@@ -442,17 +468,31 @@ class AnswerOut(BaseModel):
 # for answer in answers:
 #     print(idx2entity[answer])
 
+
 app = FastAPI()
 
-@app.post("/question", response_model=AnswerOut)
-def extract_answer(user_request: UserRequestIn):
-    text = user_request.text
-    head = user_request.head
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+templates = Jinja2Templates(directory="templates")
+
+@app.post("/question", response_class=HTMLResponse)
+def extract_answer(request: Request, text: str = Form(...), model_type: str = Form(...)):
+    doc = nlp(text)
+    head = ''
+    for ent in doc.ents:
+        if (ent.label_=='BIOMED'):
+            head = name2entity[ent.text]
+    
     data_array = []
     data_array.append([head, text.strip(), ['',]])
-    answers, score = validate_v2(model=model, data= data_array, entity2idx=entity2idx, train_dataloader=dataset, device=device, model_name=model_name) #need to change to provide data from API
+    model = modelbio
+    dataset = datasetbio
+    if(model_type=='RoBERTa'):
+        model = modelrob
+        dataset = datasetrob
+    answers, score = validate_v2(model=model, data= data_array, entity2idx=entity2idx, train_dataloader=dataset, device=device, model_name=model_name)
 
-    return {"answer": idx2entity[answers[0]]}
+    return templates.TemplateResponse("predict.html", {"request": request, "answer": ', '.join([entity2name[y] for y in [idx2entity[x] for x in answers[0].tolist()]])})
 
 # data_array = []
 # head = 'Disease::DOID:1936'
@@ -461,5 +501,10 @@ def extract_answer(user_request: UserRequestIn):
 # data_array.append([head, question, answer])
 # answers, score = validate_v2(model=model, data=data_array, entity2idx=entity2idx, train_dataloader=dataset, device=device, model_name=model_name) #need to change to provide data from API
 # print(idx2entity[answers[0]])
+
+@app.get("/", response_class=HTMLResponse)
+def return_page(request: Request):
+    return templates.TemplateResponse("collectResponse.html", {"request": request})
+
 if __name__ == "__main__":
     uvicorn.run("hello_world_fastapi:app")
