@@ -24,7 +24,7 @@ Simply replace the model and dataloader files in ./KGQA/RoBERTa with the files o
 ## Running the Demo
 Make sure to install [spacy](https://spacy.io/usage), and [FastAPI](https://towardsdatascience.com/how-to-deploy-a-machine-learning-model-with-fastapi-docker-and-github-actions-13374cbd638a).
 
-Change to directory ./KGQA/RoBERTa/api. Copy the pretrained_models file in this folder and add the QA trained weights files in ./KGQA/RoBERTa/api/ml in the format modelname_model.pt where modelname will be roberta/biobert
+Change to directory ./KGQA/RoBERTa/api. Copy the pretrained_models folder in this folder and add the QA trained weights files in ./KGQA/RoBERTa/api/ml in the format modelname_model.pt where modelname will be roberta/biobert
 
 Run this command
 ```
